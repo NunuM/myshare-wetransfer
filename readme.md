@@ -2,7 +2,7 @@
 
 MyShare is a service like WeTransfer, but for personal use. In WeTransfer, they hold your files, in this
 service, you share the URL with your colleges and they upload the files. You can also share links like WeTransfer
-from file that you uploaded.
+from files that you uploaded.
 
 ### Features
 
@@ -18,7 +18,7 @@ from file that you uploaded.
 
 **FS_UPLOAD_DIR**
 
-Absolute path from where you want the files.
+Absolute path from where you want store the files.
 
 **FS_TEMPLATES**
 
