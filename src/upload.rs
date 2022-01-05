@@ -13,7 +13,6 @@ use crate::utils::generate_random_link;
 use actix_files::NamedFile;
 use std::collections::HashMap;
 
-
 #[derive(Serialize, Clone)]
 pub enum FileType {
     Regular,
@@ -41,32 +40,35 @@ impl FileInfo {
 
 #[derive(Clone, Debug)]
 pub struct UploadManager {
-    destination: PathBuf
+    destination: PathBuf,
 }
 
 impl UploadManager {
     pub fn new(dst: PathBuf) -> Result<Self, AppError> {
-        std::fs::create_dir_all(&dst)?;
+        std::fs::create_dir_all(&dst).map_err(|e| AppError::InitError(e.to_string()))?;
 
-        Ok(UploadManager {
-            destination: dst
-        })
+        Ok(UploadManager { destination: dst })
     }
 
     pub fn get_file_from_link<F: AsRef<str>>(&self, link: F) -> Result<NamedFile, AppError> {
-        Ok(NamedFile::open(format!("{}/{}.zip", self.destination.to_string_lossy(), link.as_ref()))?)
+        Ok(NamedFile::open(format!(
+            "{}/{}.zip",
+            self.destination.to_string_lossy(),
+            link.as_ref()
+        ))?)
     }
-
 
     pub async fn store(&self, mut payload: Multipart) -> Result<String, AppError> {
         let archive_name = generate_random_link();
         let dest_path = self.destination.clone();
+
         let mut uploaded: usize = 0;
+
         let max_size = std::env::var("FS_MAX_SIZE")
             .ok()
             .map(|value| value.parse::<usize>().ok())
             .flatten()
-            .unwrap_or(1000000000);
+            .unwrap_or(1_000_000_000);
 
         let filename_0 = format!("{}/{}.zip", dest_path.to_string_lossy(), archive_name);
         let filename_1 = filename_0.clone();
@@ -74,15 +76,18 @@ impl UploadManager {
 
         let mut is_empty = true;
 
-        let target = web::block(move || std::fs::File::create(filename_0))
-            .await?;
+        let target = web::block(move || std::fs::File::create(filename_0)).await?;
 
         let mut zipper = zip::ZipWriter::new(target);
 
-        let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let options =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
         while let Ok(Some(mut field)) = payload.try_next().await {
-            let some_name = field.content_disposition().map(|d| d.get_filename().map(|s| s.to_string())).flatten();
+            let some_name = field
+                .content_disposition()
+                .map(|d| d.get_filename().map(|s| s.to_string()))
+                .flatten();
             let filename = some_name.unwrap_or(generate_random_link());
 
             zipper.start_file(filename, options)?;
@@ -93,7 +98,6 @@ impl UploadManager {
                 uploaded += data.len();
 
                 if uploaded > max_size {
-
                     if let Err(err) = web::block(move || std::fs::remove_file(filename_1)).await {
                         error!("Cannot delete file: {}: {:?}", filename_2, err);
                     }
@@ -115,12 +119,10 @@ impl UploadManager {
             return Err(AppError::ArchiveError(format!("Empty file")));
         }
 
-
         zipper.finish()?;
 
         Ok(archive_name)
     }
-
 
     pub fn list_directory(&self) -> Result<Vec<FileInfo>, AppError> {
         let mut dirs = Vec::new();
@@ -131,7 +133,10 @@ impl UploadManager {
 
             let name = entry.file_name().to_string_lossy().to_string();
             let size = entry.metadata()?.len();
-            let created = entry.metadata()?.created()?.duration_since(SystemTime::UNIX_EPOCH)?;
+            let created = entry
+                .metadata()?
+                .created()?
+                .duration_since(SystemTime::UNIX_EPOCH)?;
 
             if name.ends_with("zip") {
                 let archive = zip::ZipArchive::new(std::fs::File::open(entry.path())?)?;
@@ -141,13 +146,16 @@ impl UploadManager {
                         file.to_string(),
                         FileType::Archive(name.replace(".zip", "").to_string()),
                         size,
-                        created.as_secs()))
+                        created.as_secs(),
+                    ))
                 }
             } else {
                 dirs.push(FileInfo::new(
                     name.to_string(),
-                    FileType::Regular, size,
-                    created.as_secs()))
+                    FileType::Regular,
+                    size,
+                    created.as_secs(),
+                ))
             }
         }
 
@@ -165,11 +173,12 @@ impl DisplayDirectories {
     pub fn from(data: &Vec<FileInfo>) -> Vec<Self> {
         let mut result = Vec::new();
 
-        let data = data.iter()
+        let data = data
+            .iter()
             .map(|f| {
                 let date = chrono::NaiveDateTime::from_timestamp(f.created as i64, 0);
 
-                (date.format("%d, %m %Y").to_string(), f)
+                (date.format("%Y, %m %d").to_string(), f)
             })
             .fold(HashMap::new(), |mut acc, (d, f)| {
                 let v = acc.entry(d).or_insert(Vec::new());
@@ -187,12 +196,8 @@ impl DisplayDirectories {
 
             for entry in entries {
                 let key = match entry.file_type {
-                    FileType::Archive(ref name) => {
-                        name
-                    }
-                    FileType::Regular => {
-                        &entry.name
-                    }
+                    FileType::Archive(ref name) => name,
+                    FileType::Regular => &entry.name,
                 };
 
                 let fs = d.files.entry(key.to_string()).or_insert(Vec::new());

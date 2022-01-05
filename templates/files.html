@@ -1,10 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends "layout.html" %}
+{% block title %}My Files{% endblock title %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        {% for entry in entries %}
+        <div class="col-12 mb-3">
+            <h2 class="display-6">{{ entry.date }}</h2>
+            <hr>
+            <div style="margin-left: 15px;">
+                {% for link,dirs in entry.files %}
+                <a target="_blank" href="/share/{{link}}">{{ link }}</a>
+
+                <ul style="list-style: none;">
+                    {% for info in dirs %}
+                    <li>{{info.name}}</li>
+                    {% endfor %}
+                </ul>
+
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock content %}

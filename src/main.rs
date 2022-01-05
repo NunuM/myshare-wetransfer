@@ -1,17 +1,21 @@
-use std::io::Write;
+#[macro_use]
+extern crate log;
 
-use actix_multipart::Multipart;
-use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer};
-use futures::{StreamExt, TryStreamExt};
-use tera::{Tera, Context};
-use actix_web::error::ErrorInternalServerError;
-use serde::{Serialize, Deserialize};
 use actix_files::NamedFile;
-use zip::write::FileOptions;
-use actix_web::web::Buf;
+use actix_multipart::Multipart;
+use actix_web::error::ErrorInternalServerError;
+use actix_web::middleware::{Compress, Logger};
+use actix_web::{web, App, Error, HttpResponse, HttpServer};
+use serde::{Deserialize, Serialize};
+use tera::Context;
 
-const BASE_DIR: &str = "./tmp";
+use crate::app::AppData;
+use crate::upload::DisplayDirectories;
 
+mod app;
+mod auth;
+mod errors;
+mod upload;
 mod utils;
 
 #[derive(Debug, Serialize)]
@@ -21,101 +25,96 @@ struct FileInfo {
     size: u64,
 }
 
-async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
+async fn save_file(payload: Multipart, data: web::Data<AppData>) -> Result<HttpResponse, Error> {
+    let manager = data.manager();
 
-    let mut f = web::block(|| std::fs::File::create(format!("{}/m.zip", BASE_DIR)))
-        .await
-        .unwrap();
-
-    let mut zipper = zip::ZipWriter::new(f);
-
-    let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
-
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        let content_type = field.content_disposition().unwrap();
-        let filename = content_type.get_filename().unwrap();
-
-        zipper.start_file(filename, options).unwrap();
-
-        while let Some(chunk) = field.next().await {
-            let data = chunk.unwrap();
-
-            zipper = web::block(move || zipper.write_all(data.bytes()).map(|_| zipper)).await?;
-        }
-    }
-
-    zipper.finish().unwrap();
+    let _ = manager.store(payload).await?;
 
     Ok(HttpResponse::SeeOther().header("Location", "/").finish())
 }
 
 #[derive(Debug, Deserialize)]
-struct FileQuery {
-    file: String
+struct FilePath {
+    file: String,
 }
 
-async fn download_file(query: web::Query<FileQuery>) -> Result<NamedFile, Error> {
-    Ok(NamedFile::open(format!("{}/{}", BASE_DIR, sanitize_filename::sanitize(&query.file))).unwrap())
+async fn download_file(
+    path: web::Path<FilePath>,
+    data: web::Data<AppData>,
+) -> Result<NamedFile, Error> {
+    data.manager()
+        .get_file_from_link(path.file.as_str())
+        .map_err(|e| e.into())
 }
 
-
-async fn index(data: web::Data<Tera>) -> Result<HttpResponse, Error> {
-    let mut context = Context::new();
-
-    let mut files = Vec::new();
-
-    for result_entry in std::fs::read_dir(BASE_DIR).unwrap() {
-        let entry = result_entry.unwrap();
-
-        let filename = entry.file_name().into_string().unwrap();
-
-        let file_mata = entry.metadata().unwrap();
-
-        let size = file_mata.len();
-        let created = file_mata.created().unwrap();
-
-
-        files.push(FileInfo {
-            filename,
-            created: format!("{:?}", created.elapsed().unwrap().as_secs()),
-            size,
-        })
-    }
-
-    context.insert("files", &files);
+async fn index(data: web::Data<AppData>) -> Result<HttpResponse, Error> {
+    let context = Context::new();
 
     let index_content = data
-        .render("index.html", &context)
+        .templates()
+        .render("home.html", &context)
         .map_err(ErrorInternalServerError)?;
 
     Ok(HttpResponse::Ok().body(index_content))
 }
 
+async fn list_files(data: web::Data<AppData>) -> Result<HttpResponse, Error> {
+    let mut context = Context::new();
+
+    context.insert(
+        "entries",
+        &DisplayDirectories::from(&data.manager().list_directory()?),
+    );
+
+    let index_content = data
+        .templates()
+        .render("files.html", &context)
+        .map_err(|e| {
+            error!("Error rendering files list: {:?}", e);
+
+            actix_web::Error::from(
+                HttpResponse::InternalServerError()
+                    .set_header("Content-Type", "text/plain")
+                    .body(e.to_string()),
+            )
+        })?;
+
+    Ok(HttpResponse::Ok().body(index_content))
+}
+
+#[derive(Debug, Deserialize)]
+struct LinkPath {
+    link: String,
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
-    std::fs::create_dir_all(BASE_DIR).unwrap();
+    std::env::set_var("RUST_LOG", "fshare=info,actix_web=info");
+    env_logger::init();
 
-    let ip = "0.0.0.0:3000";
+    let port = std::env::var("FS_PORT").ok().unwrap_or("3000".to_string());
 
+    let addr = format!("0.0.0.0:{}", port);
 
     HttpServer::new(|| {
         App::new()
-            .data(match Tera::new("templates/**/*") {
-                Ok(t) => t,
-                Err(e) => {
-                    println!("Parsing error(s): {}", e);
-                    ::std::process::exit(1);
-                }
-            })
+            .data(AppData::new().unwrap())
+            .wrap(Logger::default())
+            .wrap(Compress::default())
             .service(
                 web::resource("/")
                     .route(web::get().to(index))
-                    .route(web::post().to(save_file))
-            ).route("/download", web::get().to(download_file))
+                    .route(web::post().to(save_file)),
+            )
+            .service(
+                web::resource("files")
+                    .route(web::get().to(list_files))
+                    .wrap(auth::BasicAuth),
+            )
+            .route("/share/{file}", web::get().to(download_file))
+            .service(actix_files::Files::new("/static", "static/"))
     })
-        .bind(ip)?
-        .run()
-        .await
+    .bind(addr)?
+    .run()
+    .await
 }
