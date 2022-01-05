@@ -7,7 +7,7 @@ from files that you uploaded.
 ### Features
 
 * Drag-and-drop;
-* Single and multiple files uploads;
+* Single and multiple files upload;
 * Folder upload (using File API);
 * Preview of files and folder before upload;
 * Upload progress feedback;
