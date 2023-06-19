@@ -17,5 +17,14 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
 
+      - name: Install PAM lib
+        run: apt-get install -y libpam-dev
+
+      - name: Install Cargo DEB
+        run: cargo install cargo-deb
+
       - name: Build project
         run: cargo build --release
+
+      - name: Build DEB file
+        run: cargo deb
