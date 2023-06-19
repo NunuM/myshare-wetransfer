@@ -1,8 +1,12 @@
 [package]
 name = "fshare"
-version = "0.1.0"
-authors = ["nuno <1140358@isep.ipp.pt>"]
+version = "0.1.1"
+authors = ["nuno <nuno@nunum.me>"]
 edition = "2018"
+readme = "README.md"
+description = "MyShare service"
+homepage = "https://github.com/NunuM/myshare-wetransfer"
+repository = "https://github.com/NunuM/myshare-wetransfer"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,3 +23,27 @@ rand = "0.8.4"
 log = "0.4.14"
 env_logger = "0.9.0"
 chrono = "0.4.19"
+base64 = "0.21.2"
+pam = "0.7.0"
+rust-ini="0.15.2"
+
+[package.metadata.deb]
+maintainer = "Nuno Goncalves <nuno.goncalves@talos.sh>"
+copyright = "2023, NunuM <nuno@nunum.me>"
+license-file = ["LICENSE", "2"]
+changelog="CHANGELOG.md"
+extended-description = """\
+MyShare is a service like WeTransfer, \
+but for personal use."""
+depends = "$auto"
+section = "web"
+priority = "optional"
+assets = [
+    ["target/release/fshare", "opt/fshare/", "755"],
+    ["templates", "opt/fshare/templates", "644"],
+    ["README.md", "usr/share/doc/fshare/", "644"],
+    ["config.ini", "opt/fshare/", "644"],
+    ["users.txt", "opt/fshare/", "644"],
+]
+maintainer-scripts = "pkg/debian/"
+systemd-units = { unit-name = "fshare", unit-scripts = "pkg/common", enable = false  }

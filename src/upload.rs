@@ -41,13 +41,12 @@ impl FileInfo {
 #[derive(Clone, Debug)]
 pub struct UploadManager {
     destination: PathBuf,
+    max_size: usize,
 }
 
 impl UploadManager {
-    pub fn new(dst: PathBuf) -> Result<Self, AppError> {
-        std::fs::create_dir_all(&dst).map_err(|e| AppError::InitError(e.to_string()))?;
-
-        Ok(UploadManager { destination: dst })
+    pub fn new(dst: PathBuf, max_size: usize) -> Self {
+        UploadManager { destination: dst, max_size }
     }
 
     pub fn get_file_from_link<F: AsRef<str>>(&self, link: F) -> Result<NamedFile, AppError> {
@@ -64,11 +63,7 @@ impl UploadManager {
 
         let mut uploaded: usize = 0;
 
-        let max_size = std::env::var("FS_MAX_SIZE")
-            .ok()
-            .map(|value| value.parse::<usize>().ok())
-            .flatten()
-            .unwrap_or(1_000_000_000);
+        let max_size = self.max_size;
 
         let filename_0 = format!("{}/{}.zip", dest_path.to_string_lossy(), archive_name);
         let filename_1 = filename_0.clone();
@@ -88,6 +83,7 @@ impl UploadManager {
                 .content_disposition()
                 .map(|d| d.get_filename().map(|s| s.to_string()))
                 .flatten();
+
             let filename = some_name.unwrap_or(generate_random_link());
 
             zipper.start_file(filename, options)?;
@@ -139,15 +135,17 @@ impl UploadManager {
                 .duration_since(SystemTime::UNIX_EPOCH)?;
 
             if name.ends_with("zip") {
-                let archive = zip::ZipArchive::new(std::fs::File::open(entry.path())?)?;
+                let result_archive = zip::ZipArchive::new(std::fs::File::open(entry.path())?);
 
-                for file in archive.file_names() {
-                    dirs.push(FileInfo::new(
-                        file.to_string(),
-                        FileType::Archive(name.replace(".zip", "").to_string()),
-                        size,
-                        created.as_secs(),
-                    ))
+                if let Ok(archive) = result_archive {
+                    for file in archive.file_names() {
+                        dirs.push(FileInfo::new(
+                            file.to_string(),
+                            FileType::Archive(name.replace(".zip", "").to_string()),
+                            size,
+                            created.as_secs(),
+                        ))
+                    }
                 }
             } else {
                 dirs.push(FileInfo::new(

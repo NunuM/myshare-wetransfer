@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+
 use actix_files::NamedFile;
 use actix_multipart::Multipart;
 use actix_web::error::ErrorInternalServerError;
@@ -17,6 +18,7 @@ mod auth;
 mod errors;
 mod upload;
 mod utils;
+mod app_configs;
 
 #[derive(Debug, Serialize)]
 struct FileInfo {
@@ -89,17 +91,31 @@ struct LinkPath {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "fshare=info,actix_web=info");
+    std::env::set_var("RUST_LOG", "fshare=debug,actix_web=info");
     env_logger::init();
 
-    let port = std::env::var("FS_PORT").ok().unwrap_or("3000".to_string());
+    let args: Vec<_> = std::env::args().collect();
+    let application_configurations = app_configs::ApplicationConfigurations::from_config_file(
+        args.get(1)
+    ).expect(format!("Error loading application properties").as_str());
 
-    let addr = format!("0.0.0.0:{}", port);
+    let addr = format!("{}:{}",
+                       application_configurations.server_configs().host(),
+                       application_configurations.server_configs().port());
 
-    HttpServer::new(|| {
+    debug!("Starting application with configs:{:?}", application_configurations);
+
+    let log_format = application_configurations.server_configs().log_format().to_string();
+    let number_of_threads = application_configurations.server_configs().number_thread() as usize;
+
+    let auth_middleware = auth::BasicAuth::new(application_configurations.server_configs().auth_strategy())
+        .expect("Unable to starting authentication middleware");
+
+    HttpServer::new(move || {
         App::new()
-            .data(AppData::new().unwrap())
-            .wrap(Logger::default())
+            .data(AppData::new(application_configurations.clone())
+                .expect(format!("Error creating application properties").as_str()))
+            .wrap(Logger::new(&log_format))
             .wrap(Compress::default())
             .service(
                 web::resource("/")
@@ -109,12 +125,13 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::resource("files")
                     .route(web::get().to(list_files))
-                    .wrap(auth::BasicAuth),
+                    .wrap(auth_middleware.clone()),
             )
             .route("/share/{file}", web::get().to(download_file))
             .service(actix_files::Files::new("/static", "static/"))
     })
-    .bind(addr)?
-    .run()
-    .await
+        .workers(number_of_threads)
+        .bind(addr)?
+        .run()
+        .await
 }

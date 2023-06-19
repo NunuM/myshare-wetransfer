@@ -1,0 +1,13 @@
+[Unit]
+Description=fshare
+After=network.target
+Wants=network-online.target
+
+[Service]
+Restart=always
+Type=simple
+WorkingDirectory=/opt/fshare
+ExecStart=/opt/fshare/fshare
+
+[Install]
+WantedBy=multi-user.target
