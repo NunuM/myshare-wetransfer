@@ -103,10 +103,13 @@ impl UiConfiguration {
 #[derive(Clone, Debug)]
 pub enum AuthStrategy {
     File(std::path::PathBuf),
+    #[cfg(target_os = "linux")]
     PamModule(String),
 }
 
 impl AuthStrategy {
+
+    #[cfg(not(target_os = "linux"))]
     fn try_from(configs: &Ini) -> Result<Self, AppError> {
         let auth_strategy = configs
             .get_from(Some(ServerConfiguration::section_name()), "auth_strategy")
@@ -124,7 +127,28 @@ impl AuthStrategy {
 
             Ok(AuthStrategy::File(users_file.to_path_buf()))
         } else {
+            Err(AppError::InitError(format!("Invalid auth_strategy")))
+        }
+    }
 
+    #[cfg(target_os = "linux")]
+    fn try_from(configs: &Ini) -> Result<Self, AppError> {
+        let auth_strategy = configs
+            .get_from(Some(ServerConfiguration::section_name()), "auth_strategy")
+            .unwrap_or("auth_file");
+
+
+        if auth_strategy.eq("auth_file") {
+            let users_file = configs.get_from(Some(auth_strategy), "user_pass_file")
+                .map(|path| std::path::Path::new(path))
+                .unwrap_or(std::path::Path::new("users.txt"));
+
+            if !users_file.exists() {
+                return Err(AppError::InitError(format!("Unable to read users password file: {}", users_file.display())));
+            }
+
+            Ok(AuthStrategy::File(users_file.to_path_buf()))
+        } else {
             let pam_module = configs.get_from(Some(auth_strategy), "pam_module_name")
                 .ok_or(AppError::InitError(format!("Missing pam module name in section:[{}]", auth_strategy)))?;
 

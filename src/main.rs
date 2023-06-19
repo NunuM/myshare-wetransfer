@@ -11,14 +11,16 @@ use serde::{Deserialize, Serialize};
 use tera::Context;
 
 use crate::app::AppData;
+use crate::auth_middleware::BasicAuth;
 use crate::upload::DisplayDirectories;
 
 mod app;
-mod auth;
+mod auth_middleware;
 mod errors;
 mod upload;
 mod utils;
 mod app_configs;
+mod authenticator;
 
 #[derive(Debug, Serialize)]
 struct FileInfo {
@@ -108,7 +110,7 @@ async fn main() -> std::io::Result<()> {
     let log_format = application_configurations.server_configs().log_format().to_string();
     let number_of_threads = application_configurations.server_configs().number_thread() as usize;
 
-    let auth_middleware = auth::BasicAuth::new(application_configurations.server_configs().auth_strategy())
+    let auth_middleware = BasicAuth::new(application_configurations.server_configs().auth_strategy())
         .expect("Unable to starting authentication middleware");
 
     HttpServer::new(move || {

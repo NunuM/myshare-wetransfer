@@ -7,6 +7,7 @@ use base64::Engine;
 use futures::future::{ok, Either, Ready};
 use futures::task::{Context, Poll};
 use crate::app_configs::AuthStrategy;
+use crate::authenticator::{Authenticator, get_authenticator};
 use crate::errors::AppError;
 
 #[derive(Clone)]
@@ -16,19 +17,8 @@ pub struct BasicAuth {
 
 impl BasicAuth {
     pub fn new(auth_strategy: &AuthStrategy) -> Result<Self, AppError> {
-        Ok(match auth_strategy {
-            AuthStrategy::File(file) => {
-                BasicAuth {
-                    authenticator: Arc::new(Box::new(PasswdFileAuthenticator::new(file)?))
-                }
-            }
-            AuthStrategy::PamModule(pam_module) => {
-                BasicAuth {
-                    authenticator: Arc::new(Box::new(PamAuthenticator {
-                        pam_module: pam_module.to_string()
-                    }))
-                }
-            }
+        Ok(BasicAuth {
+            authenticator: get_authenticator(auth_strategy)?
         })
     }
 }
@@ -76,7 +66,6 @@ impl<S, B> Service for BasicAuthMiddleware<S>
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-
         let is_auth = req
             .headers()
             .get(actix_web::http::header::AUTHORIZATION)
@@ -110,77 +99,5 @@ impl<S, B> Service for BasicAuthMiddleware<S>
                     .into_body(),
             )))
         }
-    }
-}
-
-trait Authenticator: Sync + Send {
-    fn authenticate(&self, username: &str, password: &str) -> bool;
-}
-
-
-struct PamAuthenticator {
-    pam_module: String,
-}
-
-impl Clone for PamAuthenticator {
-    fn clone(&self) -> Self {
-        PamAuthenticator {
-            pam_module: self.pam_module.clone()
-        }
-    }
-}
-
-impl Authenticator for PamAuthenticator {
-    fn authenticate(&self, username: &str, password: &str) -> bool {
-        pam::Authenticator::with_password(&self.pam_module)
-            .map(|mut auth| {
-                auth.get_handler().set_credentials(username, password);
-
-                auth.authenticate().is_ok()
-            })
-            .unwrap_or(false)
-    }
-}
-
-struct PasswdFileAuthenticator {
-    users: HashMap<String, String>,
-}
-
-impl PasswdFileAuthenticator {
-    fn new(file: &std::path::PathBuf) -> Result<Self, AppError> {
-        let mut users = HashMap::new();
-
-        let file_content = std::fs::read_to_string(file)
-            .map_err(|e| AppError::InitError(format!("Failed to read password file:{}", e)))?;
-
-        let lines = file_content.lines();
-
-        lines
-            .filter(|l| !l.starts_with("#"))
-            .for_each(|line| {
-                let some_parts = line.split_once(" ");
-
-                if let Some((user, pass)) = some_parts {
-                    users.insert(user.to_string(), pass.to_string());
-                }
-            });
-
-        Ok(PasswdFileAuthenticator {
-            users
-        })
-    }
-}
-
-impl Clone for PasswdFileAuthenticator {
-    fn clone(&self) -> Self {
-        PasswdFileAuthenticator {
-            users: self.users.clone()
-        }
-    }
-}
-
-impl Authenticator for PasswdFileAuthenticator {
-    fn authenticate(&self, username: &str, password: &str) -> bool {
-        self.users.get(username).map(|pass| pass.eq(password)).unwrap_or(false)
     }
 }

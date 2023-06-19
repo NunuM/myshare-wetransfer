@@ -25,6 +25,11 @@ using that URL, eliminating the need for them to create accounts or rely on thir
 With MyShare, you can enjoy a user-friendly file sharing experience that empowers collaboration while prioritizing
 privacy and control.
 
+### Authentication
+
+* username-password file, like in [users.txt](https://github.com/NunuM/myshare-wetransfer/blob/master/users.txt) file;
+* PAM authentication
+
 ### Resources
 
 | Resource      | Method | Description                                                            |
@@ -32,9 +37,4 @@ privacy and control.
 | /             | GET    | index page                                                             |
 | /             | POST   | upload file                                                            |
 | /files        | GET    | Admin Area to see uploaded files and their correspondent sharing links |
-| /share/{file} | GET    | Download file                                                          |
-
-### Authentication
-
-* username-password file, like in [users.txt](https://github.com/NunuM/myshare-wetransfer/blob/master/users.txt) file;
-* PAM authentication
+| /share/{code} | GET    | Download file                                                          |

@@ -24,8 +24,10 @@ log = "0.4.14"
 env_logger = "0.9.0"
 chrono = "0.4.19"
 base64 = "0.21.2"
-pam = "0.7.0"
 rust-ini="0.15.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+pam = "0.7.0"
 
 [package.metadata.deb]
 maintainer = "Nuno Goncalves <nuno.goncalves@talos.sh>"
@@ -40,7 +42,7 @@ section = "web"
 priority = "optional"
 assets = [
     ["target/release/fshare", "opt/fshare/", "755"],
-    ["templates", "opt/fshare/templates", "644"],
+    ["templates/**", "opt/fshare/templates", "644"],
     ["README.md", "usr/share/doc/fshare/", "644"],
     ["config.ini", "opt/fshare/", "644"],
     ["users.txt", "opt/fshare/", "644"],
