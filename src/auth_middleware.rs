@@ -1,11 +1,12 @@
-use std::collections::HashMap;
 use std::sync::Arc;
+
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::Error;
 use actix_web::HttpResponse;
 use base64::Engine;
-use futures::future::{ok, Either, Ready};
+use futures::future::{Either, ok, Ready};
 use futures::task::{Context, Poll};
+
 use crate::app_configs::AuthStrategy;
 use crate::authenticator::{Authenticator, get_authenticator};
 use crate::errors::AppError;

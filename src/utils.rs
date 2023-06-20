@@ -20,6 +20,16 @@ pub fn generate_random_link() -> String {
     link
 }
 
+pub fn is_link_valid<T: AsRef<str>>(link: T) -> bool {
+    for x in link.as_ref().chars() {
+        if ! ((x >= 'A' && x <= 'Z') || (x >= 'a' && x <= 'z')) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 #[test]
 fn gen_links_works() {
     let link = generate_random_link();

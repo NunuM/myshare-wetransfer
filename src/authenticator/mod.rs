@@ -1,4 +1,5 @@
 use std::sync::Arc;
+
 use crate::app_configs::AuthStrategy;
 #[cfg(target_os = "linux")]
 use crate::authenticator::pam::PamAuthenticator;

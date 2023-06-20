@@ -1,8 +1,9 @@
 use std::net::IpAddr;
 use std::str::FromStr;
-use ini::Ini;
-use crate::errors::AppError;
 
+use ini::Ini;
+
+use crate::errors::AppError;
 
 const FSHARE_CONF_FILE_ENV_KEY: &'static str = "FSHARE_CONF_FILE";
 

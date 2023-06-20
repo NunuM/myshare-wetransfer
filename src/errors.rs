@@ -1,9 +1,8 @@
 use std::time::SystemTimeError;
 
 use actix_multipart::MultipartError;
-use actix_web::rt::blocking::BlockingError;
 use actix_web::HttpResponse;
-
+use actix_web::rt::blocking::BlockingError;
 use zip::result::ZipError;
 
 #[derive(Debug)]
@@ -13,6 +12,7 @@ pub enum AppError {
     ArchiveError(String),
     UploadFailed(String),
     ThreadError(String),
+    FileNotFound
 }
 
 impl std::fmt::Display for AppError {
@@ -23,6 +23,7 @@ impl std::fmt::Display for AppError {
             AppError::ArchiveError(ref reason) => write!(f, "zip error {}", reason),
             AppError::UploadFailed(ref reason) => write!(f, "upload error {}", reason),
             AppError::ThreadError(ref reason) => write!(f, "thread error {}", reason),
+            AppError::FileNotFound => {write!(f, "file not found")}
         }
     }
 }
@@ -62,6 +63,7 @@ impl actix_web::error::ResponseError for AppError {
             AppError::FileSystemError(ref reason) => HttpResponse::InternalServerError()
                 .set_header("Content-Type", "text/plain")
                 .body(reason),
+            AppError::FileNotFound => HttpResponse::NotFound().finish(),
             _ => HttpResponse::InternalServerError().finish(),
         }
     }

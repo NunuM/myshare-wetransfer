@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+
 use crate::authenticator::Authenticator;
 use crate::errors::AppError;
 

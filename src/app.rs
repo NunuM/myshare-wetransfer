@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use tera::Tera;
-use crate::app_configs::ApplicationConfigurations;
 
+use crate::app_configs::ApplicationConfigurations;
 use crate::errors::AppError;
 use crate::upload::UploadManager;
 

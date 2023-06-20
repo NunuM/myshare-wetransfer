@@ -4,9 +4,9 @@ extern crate log;
 
 use actix_files::NamedFile;
 use actix_multipart::Multipart;
+use actix_web::{App, Error, HttpResponse, HttpServer, web};
 use actix_web::error::ErrorInternalServerError;
 use actix_web::middleware::{Compress, Logger};
-use actix_web::{web, App, Error, HttpResponse, HttpServer};
 use serde::{Deserialize, Serialize};
 use tera::Context;
 

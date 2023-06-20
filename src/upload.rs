@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+use actix_files::NamedFile;
 use actix_multipart::Multipart;
 use actix_web::web;
 use actix_web::web::Buf;
@@ -9,9 +11,7 @@ use futures::{StreamExt, TryStreamExt};
 use serde::Serialize;
 
 use crate::errors::AppError;
-use crate::utils::generate_random_link;
-use actix_files::NamedFile;
-use std::collections::HashMap;
+use crate::utils::{generate_random_link, is_link_valid};
 
 #[derive(Serialize, Clone)]
 pub enum FileType {
@@ -50,11 +50,18 @@ impl UploadManager {
     }
 
     pub fn get_file_from_link<F: AsRef<str>>(&self, link: F) -> Result<NamedFile, AppError> {
-        Ok(NamedFile::open(format!(
-            "{}/{}.zip",
-            self.destination.to_string_lossy(),
-            link.as_ref()
-        ))?)
+        if !is_link_valid(&link) {
+            debug!("invalid link: {}", link.as_ref());
+            return Err(AppError::FileNotFound);
+        }
+
+        let file_to_serve = self.destination.join(format!("{}.zip", link.as_ref()));
+
+        Ok(NamedFile::open(file_to_serve).map_err(|e| {
+            error!("Error serving file: {:?}", e);
+
+            AppError::FileNotFound
+        })?)
     }
 
     pub async fn store(&self, mut payload: Multipart) -> Result<String, AppError> {
