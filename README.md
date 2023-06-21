@@ -1,9 +1,7 @@
 # MyShare
 
 MyShare is a convenient and secure file sharing service designed for personal use. Similar to WeTransfer, it allows you
-to share files with your colleagues, but with a unique twist. Rather than storing the files on the service itself,
-MyShare provides you with a URL that you can share with others. Your colleagues can then upload their files directly
-using that URL, eliminating the need for them to create accounts or rely on third-party servers.
+to upload files and share links to the uploaded files.
 
 ### Key features of MyShare include:
 
@@ -38,3 +36,26 @@ privacy and control.
 | /             | POST   | upload file                                                            |
 | /files        | GET    | Admin Area to see uploaded files and their correspondent sharing links |
 | /share/{code} | GET    | Download file                                                          |
+
+
+### Run
+
+````bash
+cargo run --color=always --package fshare --bin fshare 
+````
+
+### DEB package
+
+````bash
+cargo install cargo-deb
+cargo deb
+````
+
+### Configuration
+
+Edit to your preferences the [confi.ini](https://github.com/NunuM/myshare-wetransfer/blob/master/config.ini)
+and run the application in the same directory, or you can pass the absolute path via argument or via environment 
+variable: **FSHARE_CONF_FILE**
+
+
+Open an issue if you find any problem 👍
